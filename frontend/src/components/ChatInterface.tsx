@@ -22,6 +22,8 @@ export default function ChatInterface() {
   const [isButtonPressed, setIsButtonPressed] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
 
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
   async function handleConnect() {
     setLoading(true);
     try {
@@ -67,7 +69,7 @@ export default function ChatInterface() {
         ? 'language learning session'
         : 'startup pitch practice session';
 
-      const response = await fetch('http://localhost:3001/api/summary', {
+      const response = await fetch(`${API_URL}/api/summary`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -155,7 +157,7 @@ export default function ChatInterface() {
     
     try {
       // Send the raw transcript to backend for processing and correction
-      const response = await fetch('http://localhost:3001/api/transcript/process', {
+      const response = await fetch(`${API_URL}/api/transcript/process`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

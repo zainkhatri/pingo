@@ -10,12 +10,14 @@ export function useRealtime() {
   const eventsRef = useRef<RTCDataChannel | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
-  const greetingSentRef = useRef<boolean>(false); // Track if greeting was already sent
-  const ignoreOpenAIAudioRef = useRef<boolean>(false); // Flag to ignore OpenAI audio processing
+  const greetingSentRef = useRef<boolean>(false);
+  const ignoreOpenAIAudioRef = useRef<boolean>(false);
 
   const [connected, setConnected] = useState(false);
-  const [aiSpeaking, setAiSpeaking] = useState(false); // Start as false - wait for user to initiate
+  const [aiSpeaking, setAiSpeaking] = useState(false);
   const [transcript, setTranscript] = useState<Array<{role: 'user' | 'ai', text: string}>>([]);
+
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
   // Send a Blob (webm) to OpenAI and get text back
   async function transcribeAudio(blob: Blob): Promise<string> {
@@ -23,7 +25,7 @@ export function useRealtime() {
     form.append("file", blob, "speech.webm");
     form.append("model", "whisper-1");
 
-    const res = await fetch("http://localhost:3001/api/openai/audio/transcriptions", {
+    const res = await fetch(`${API_URL}/api/openai/audio/transcriptions`, {
       method: "POST",
       body: form,
     });
@@ -34,7 +36,7 @@ export function useRealtime() {
 
   async function connect() {
     console.log('Starting connection...');
-    const session = await fetch("http://localhost:3001/session").then(r => r.json());
+    const session = await fetch(`${API_URL}/session`).then(r => r.json());
     const token: string | undefined = session?.client_secret?.value;
     if (!token) throw new Error("No ephemeral token");
 
