@@ -141,6 +141,18 @@ export default function ChatInterface() {
 
     setLoadingTranscript(true);
     setShowTranscript(true); // Show the transcript panel when generating
+    
+    // First, immediately show the basic transcript with timestamps
+    const basicTranscript = transcript.map((msg, index) => ({
+      ...msg,
+      timestamp: new Date(Date.now() - (transcript.length - index) * 30000).toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    }));
+    setAccurateTranscript(basicTranscript);
+    setLoadingTranscript(false); // Stop loading immediately since we show the basic transcript
+    
     try {
       // Send the raw transcript to backend for processing and correction
       const response = await fetch('http://localhost:3001/api/transcript/process', {
@@ -181,6 +193,7 @@ export default function ChatInterface() {
         })
       }));
       setAccurateTranscript(fallbackTranscript);
+      console.log('Using fallback transcript:', fallbackTranscript);
     } finally {
       setLoadingTranscript(false);
       // Add a delay before fading out the button
@@ -577,7 +590,7 @@ export default function ChatInterface() {
           </button>
         </div>
         
-        {accurateTranscript ? (
+        {accurateTranscript && accurateTranscript.length > 0 ? (
           <div className="space-y-4">
             {accurateTranscript.map((msg, i) => (
               <div key={i} className={`p-3 rounded-lg ${msg.role === 'ai' ? 'bg-blue-50' : 'bg-gray-50'}`}>
@@ -591,29 +604,19 @@ export default function ChatInterface() {
               </div>
             ))}
           </div>
+        ) : loadingTranscript ? (
+          <div className="text-center text-gray-500 py-8">
+            <div className="mb-2">⏳</div>
+            <p className="text-sm">Generating accurate transcript...</p>
+          </div>
         ) : (
           <div className="text-center text-gray-500 py-8">
             <div className="mb-2">📝</div>
-            <p className="text-sm">Click "Generate" to create an accurate transcript of your conversation</p>
+            <p className="text-sm">Click the document icon to generate a transcript</p>
           </div>
         )}
       </div>
 
-      {/* Bottom actions */}
-      <div className="flex justify-between items-center p-6 border-t border-gray-100 bg-gray-50/50">
-        <button className="flex items-center space-x-3 text-gray-600 hover:text-gray-900 transition-colors p-3 rounded-lg hover:bg-white">
-          <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
-            <span className="text-sm font-bold">?</span>
-          </div>
-          <span className="font-medium">I'm Stuck</span>
-        </button>
-        <button className="flex items-center space-x-3 text-gray-600 hover:text-gray-900 transition-colors p-3 rounded-lg hover:bg-white">
-          <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
-            <span className="text-sm">📚</span>
-          </div>
-          <span className="font-medium">Word Bank</span>
-        </button>
-      </div>
 
       {/* Summary Modal */}
       {showSummary && (
