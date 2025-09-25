@@ -8,7 +8,17 @@ import fetch from "node-fetch";
 dotenv.config();
 
 const app = express();
-app.use(cors()); // in prod; set { origin: "https://your-frontend-host" }
+
+// Configure CORS based on environment
+const corsOptions = {
+  origin: process.env.NODE_ENV === 'production' 
+    ? ['https://pingo-frontend.vercel.app', 'https://pingo.vercel.app'] // Add your production frontend URLs
+    : ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173'], // Development URLs
+  credentials: true,
+  optionsSuccessStatus: 200
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // Test endpoint
@@ -120,8 +130,6 @@ app.post("/api/summary", async (req, res) => {
     if (scenarioContext.includes('language learning') && 
         (lowerText.includes("dont know spanish") || 
          lowerText.includes("don't know spanish") ||
-         lowerText.includes("dont know") ||
-         lowerText.includes("don't know") ||
          lowerText.includes("no spanish"))) {
       console.log('DETECTED SPANISH FAILURE - returning harsh feedback');
       return res.json({
@@ -130,10 +138,10 @@ app.post("/api/summary", async (req, res) => {
     }
 
     if (scenarioContext.includes('interview') && 
-        (lowerText.includes("i don't know") || 
-         lowerText.includes("not sure") ||
-         lowerText.includes("i guess") ||
-         lowerText.includes("um, well"))) {
+        (lowerText.includes("i don't know how to") || 
+         lowerText.includes("i have no experience") ||
+         lowerText.includes("i'm not sure what") ||
+         lowerText.includes("um, well, i guess"))) {
       return res.json({
         summary: "This was a poor interview performance. You gave vague, uncertain answers that would immediately disqualify you from consideration. Saying 'I don't know' or 'not sure' in an interview shows lack of preparation and confidence. Real interviewers expect specific examples, concrete achievements, and confident responses. You need to prepare detailed stories about your projects, practice explaining technical concepts clearly, and eliminate filler words like 'um' and 'well'."
       });
@@ -151,24 +159,24 @@ app.post("/api/summary", async (req, res) => {
         messages: [
           {
             role: 'system',
-            content: `You are a harsh performance evaluator for ${scenarioContext}. Your role is to identify failures and give tough feedback.
+            content: `You are a helpful performance evaluator. Analyze the conversation and provide balanced, constructive feedback.
 
-RULES:
-1. If someone says "I don't know Spanish" to a Spanish tutor, that's a FAILURE
-2. If someone gives vague interview answers, that's POOR PERFORMANCE  
-3. If someone has no data in a pitch, that's INADEQUATE
-4. Do NOT be encouraging about bad performance
-5. Start responses with "Problems identified:" 
-6. Be blunt about what went wrong
+Guidelines:
+- Summarize what actually happened in the conversation
+- Identify both strengths and areas for improvement
+- Be honest but supportive in your assessment
+- Consider the context and what the user was trying to achieve
+- Provide specific, actionable suggestions for improvement
+- If the conversation was brief, focus on what can be learned from it
 
-You are not a supportive coach. You are a critic pointing out failures.`
+Provide a balanced summary that helps the user understand their performance and how to improve.`
           },
           {
             role: 'user',
-            content: `Analyze this ${scenarioContext} conversation and identify all the problems and failures:\n\n${conversationText}\n\nWhat specific mistakes did the user make? Why would this approach fail in a real situation? Be direct about what went wrong.`
+            content: `Please analyze this conversation from a ${scenarioContext}:\n\n${conversationText}\n\n**Task**: Provide a balanced summary of what happened and constructive feedback. Include both positive observations and areas for improvement. Make your feedback specific and actionable.`
           }
         ],
-        max_tokens: 300
+        max_tokens: 500
       })
     });
 

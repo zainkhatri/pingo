@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { getScenarioConfig, formatInstructions, Language } from "../config/scenarios";
+import { getApiUrl } from "../config/api";
 
 export type Scenario = "jobInterview" | "languageTutor" | "founderMock";
 
@@ -23,7 +24,8 @@ export function useRealtime() {
     form.append("file", blob, "speech.webm");
     form.append("model", "whisper-1");
 
-    const res = await fetch("http://localhost:3001/api/openai/audio/transcriptions", {
+    // Use helper function for API URL
+    const res = await fetch(getApiUrl("/api/openai/audio/transcriptions"), {
       method: "POST",
       body: form,
     });
@@ -34,7 +36,8 @@ export function useRealtime() {
 
   async function connect() {
     console.log('Starting connection...');
-    const session = await fetch("http://localhost:3001/session").then(r => r.json());
+    // Use helper function for API URL
+    const session = await fetch(getApiUrl("/api/session")).then(r => r.json());
     const token: string | undefined = session?.client_secret?.value;
     if (!token) throw new Error("No ephemeral token");
 
@@ -77,7 +80,8 @@ export function useRealtime() {
     
     dc.onopen = () => {
       console.log('Data channel opened');
-      // Ready to receive user input - don't auto-start conversation
+      // Emit connected state to trigger scenario setup
+      setConnected(true);
     };
     
     dc.onmessage = (event) => {
@@ -236,7 +240,8 @@ export function useRealtime() {
           console.log('🔇 Audio buffer cleared - AI stopped');
           setAiSpeaking(false);
         } else if (message.type === 'error') {
-          console.log('⚠️ OpenAI error:', message);
+          console.error('⚠️ OpenAI error:', message);
+          console.error('⚠️ Error details:', JSON.stringify(message.error, null, 2));
           // If there's an error during interruption, still set AI as not speaking
           if (message.error && message.error.type === 'invalid_request_error') {
             setAiSpeaking(false);
@@ -276,7 +281,10 @@ export function useRealtime() {
 
     pc.onconnectionstatechange = () => {
       console.log('Connection state changed:', pc.connectionState);
-      setConnected(pc.connectionState === "connected");
+      // We'll set connected state in the data channel onopen handler instead
+      if (pc.connectionState !== "connected") {
+        setConnected(false);
+      }
     };
 
     pc.oniceconnectionstatechange = () => {
@@ -293,44 +301,50 @@ export function useRealtime() {
       return;
     }
     
-    // Get scenario config and format instructions
-    const config = getScenarioConfig(sc);
-    const instructions = formatInstructions(config, selectedLanguage);
-    
     try {
-      console.log('Updating scenario instructions:', sc);
+      console.log('Updating scenario instructions:', sc, 'in language:', selectedLanguage);
+      
+      // Map languages to appropriate voices
+      const voiceMap = {
+        'English': 'alloy',
+        'Spanish': 'echo', 
+        'Mandarin': 'shimmer',
+        'Arabic': 'coral'
+      };
+      
+      const selectedVoice = voiceMap[selectedLanguage || 'English'];
+      
+      // Simple session update with just the basics
       dc.send(JSON.stringify({
         type: "session.update",
         session: {
-          instructions: instructions,
-          voice: "alloy",
-          temperature: 0.8,
-          turn_detection: null,  // Disable automatic turn detection for manual control
-          input_audio_format: "pcm16",  // Keep format but we'll ignore the processing
+          instructions: `CRITICAL: You must speak EXCLUSIVELY in ${selectedLanguage || 'English'}. You are conducting a ${sc}. Do not use any other language under any circumstances. Your first message should be a simple greeting in ${selectedLanguage || 'English'} asking the user to introduce themselves.`,
+          voice: selectedVoice,
+          temperature: 0.6,
+          turn_detection: null,
+          input_audio_format: "pcm16",
           input_audio_transcription: {
             model: "whisper-1"
           }
         }
       }));
-      
-      // After setting the scenario, trigger AI to start the conversation with a greeting (only once)
+
+      // Simple greeting trigger
       if (!greetingSentRef.current) {
-        console.log('🎤 Triggering AI to start conversation with greeting...');
+        console.log('🎤 Triggering greeting...');
         setTimeout(() => {
-          if (dc.readyState === 'open' && !greetingSentRef.current) {
+          if (dc.readyState === 'open') {
             dc.send(JSON.stringify({
               type: "response.create"
             }));
-            greetingSentRef.current = true; // Mark greeting as sent
+            greetingSentRef.current = true;
             console.log('🎤 AI greeting request sent');
           }
-        }, 500); // Small delay to ensure scenario is processed
-      } else {
-        console.log('🎤 Greeting already sent, skipping...');
+        }, 1000);
       }
       
     } catch (error) {
-      console.log('Failed to send scenario update:', error);
+      console.error('Failed to send scenario update:', error);
     }
   }
 
@@ -342,19 +356,25 @@ export function useRealtime() {
     
     // If AI is currently speaking, interrupt it AGGRESSIVELY
     const dc = eventsRef.current;
-    if (dc && dc.readyState === 'open') {
+    if (dc && dc.readyState === 'open' && aiSpeaking) {
       console.log('Interrupting AI speech...');
-      // Send multiple interruption commands to ensure it stops
-      dc.send(JSON.stringify({
-        type: "response.cancel"
-      }));
-      // Also clear the output audio buffer
-      dc.send(JSON.stringify({
-        type: "output_audio_buffer.clear"
-      }));
-      // Force AI speaking state to false immediately
-      setAiSpeaking(false);
-      console.log('AI interruption commands sent');
+      try {
+        // Send interruption commands only if AI is actually speaking
+        dc.send(JSON.stringify({
+          type: "response.cancel"
+        }));
+        // Also clear the output audio buffer
+        dc.send(JSON.stringify({
+          type: "output_audio_buffer.clear"
+        }));
+        // Force AI speaking state to false immediately
+        setAiSpeaking(false);
+        console.log('AI interruption commands sent');
+      } catch (error) {
+        console.log('Error sending interruption commands:', error);
+      }
+    } else if (dc && dc.readyState === 'open') {
+      console.log('AI not speaking, no need to interrupt');
     }
     
     micRef.current?.getAudioTracks().forEach(t => {
@@ -380,6 +400,8 @@ export function useRealtime() {
     }
   }
 
+  const processingRequestRef = useRef<boolean>(false);
+
   async function pttEnd() {
     console.log('Push-to-talk ended');
     micRef.current?.getAudioTracks().forEach(t => {
@@ -387,10 +409,24 @@ export function useRealtime() {
       console.log('Disabled microphone track');
     });
 
+    // Prevent duplicate processing
+    if (processingRequestRef.current) {
+      console.log('🚫 Already processing a request, skipping...');
+      return;
+    }
+
     // Stop recording and transcribe FIRST, then send to AI
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       return new Promise<void>((resolve) => {
         mediaRecorderRef.current!.onstop = async () => {
+          if (processingRequestRef.current) {
+            console.log('🚫 Already processing, skipping duplicate...');
+            resolve();
+            return;
+          }
+          
+          processingRequestRef.current = true;
+          
           const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
           try {
             const text = await transcribeAudio(blob);
@@ -432,11 +468,19 @@ export function useRealtime() {
                   dc.send(JSON.stringify({
                     type: "response.create"
                   }));
+                  
+                  // Reset processing flag after response is requested
+                  setTimeout(() => {
+                    processingRequestRef.current = false;
+                  }, 1000);
                 }
               }, 100);
+            } else {
+              processingRequestRef.current = false;
             }
           } catch (error) {
             console.error('Transcription failed:', error);
+            processingRequestRef.current = false;
           }
           
           // Reset the flag after processing our transcription
@@ -493,11 +537,10 @@ export function useRealtime() {
     // Clear any recorded chunks
     chunksRef.current = [];
     
-    // Reset greeting flag
-    greetingSentRef.current = false;
-    
-    // Reset ignore flag
-    ignoreOpenAIAudioRef.current = false;
+    // Reset all flags
+    greetingSentRef.current = false; // Reset greeting flag to ensure new conversation starts with greeting
+    ignoreOpenAIAudioRef.current = false; // Reset ignore flag for audio processing
+    processingRequestRef.current = false; // Reset processing flag
     
     console.log('🧹 HARD RESET completed - AI memory should be cleared');
   }
