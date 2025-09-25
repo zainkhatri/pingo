@@ -232,7 +232,7 @@ export default function ChatInterface() {
   if (showScenarioSelect) {
     return (
       <div className="min-h-screen flex flex-col justify-center items-center p-6 bg-white overflow-y-auto">
-        <div className="w-full max-w-2xl max-h-96 overflow-y-auto space-y-6">
+        <div className="w-full max-w-md space-y-6">
           <motion.div 
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -408,7 +408,7 @@ export default function ChatInterface() {
 
       {/* Main conversation area */}
       <div className="flex-1 flex flex-col justify-center items-center px-8 py-12">
-        <div className="w-full max-w-2xl max-h-96 overflow-y-auto space-y-12 text-center">
+        <div className="w-full max-w-md space-y-12 text-center">
           
           {/* Header text moved above visualizer */}
           <div className="text-base text-gray-600 -mb-8 flex items-center justify-center space-x-6">
