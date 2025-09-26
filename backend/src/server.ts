@@ -30,7 +30,7 @@ app.get("/api/test", (req, res) => {
  * Minimal token-mint endpoint for OpenAI Realtime WebRTC.
  * The browser calls this; you return a short-lived session with client_secret.value.
  */
-app.get("/session", async (_req, res) => {
+app.get("/api/session", async (_req, res) => {
   try {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) return res.status(500).json({ error: "Missing OPENAI_API_KEY" });

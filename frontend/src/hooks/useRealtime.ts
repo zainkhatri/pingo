@@ -17,6 +17,7 @@ export function useRealtime() {
   const [connected, setConnected] = useState(false);
   const [aiSpeaking, setAiSpeaking] = useState(false); // Start as false - wait for user to initiate
   const [transcript, setTranscript] = useState<Array<{role: 'user' | 'ai', text: string}>>([]);
+  const [hasAiSpokenOnce, setHasAiSpokenOnce] = useState(false);
 
   // Send a Blob (webm) to OpenAI and get text back
   async function transcribeAudio(blob: Blob): Promise<string> {
@@ -95,6 +96,7 @@ export function useRealtime() {
         } else if (message.type === 'response.audio_transcript.delta') {
           console.log('🎤 AI transcript delta - still speaking');
           setAiSpeaking(true); // Make sure we stay in speaking state
+          setHasAiSpokenOnce(true); // Mark that AI has spoken at least once
           // Add to transcript
           console.log('Full message:', message);
           console.log('Delta object:', message.delta);
@@ -550,6 +552,7 @@ export function useRealtime() {
     setConnected(false);
     setAiSpeaking(false); // Reset to waiting state
     setTranscript([]);
+    setHasAiSpokenOnce(false); // Reset AI spoken flag for new conversation
     greetingSentRef.current = false; // Reset greeting flag for new conversation
   }
 
@@ -564,6 +567,7 @@ export function useRealtime() {
     pttStart,
     pttEnd,
     remoteRef,
-    transcript
+    transcript,
+    hasAiSpokenOnce
   };
 }

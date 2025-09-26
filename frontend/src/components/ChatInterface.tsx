@@ -6,7 +6,7 @@ import { useRealtime, Scenario } from "../hooks/useRealtime";
 import { SCENARIOS, LANGUAGES, Language } from "../config/scenarios";
 
 export default function ChatInterface() {
-  const { connect, cleanup, resetState, setScenario, connected, aiSpeaking, setAiSpeaking, pttStart, pttEnd, remoteRef, transcript } = useRealtime();
+  const { connect, cleanup, resetState, setScenario, connected, aiSpeaking, setAiSpeaking, pttStart, pttEnd, remoteRef, transcript, hasAiSpokenOnce } = useRealtime();
   const [sel, setSel] = useState<Scenario | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState<Language | null>(null);
   const [loading, setLoading] = useState(false);
@@ -542,6 +542,7 @@ export default function ChatInterface() {
                 isUserSpeaking={isUserSpeaking}
                 connected={connected}
                 aiSpeaking={aiSpeaking}
+                hasAiSpokenOnce={hasAiSpokenOnce}
               />
             </div>
             
